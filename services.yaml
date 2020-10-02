@@ -1,0 +1,11 @@
+  
+# Describes the format for available fan services
+set_mode:
+  description: Sets bypass mode.
+  fields:
+    entity_id:
+      description: Name(s) of the entities to set
+      example: "switch.izzi_bypass"
+    speed:
+      description: Mode setting
+      example: "open"
