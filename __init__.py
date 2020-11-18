@@ -5,6 +5,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.const import (
+    CONF_TYPE,
     CONF_HOST,
     CONF_NAME,
     CONF_PORT,
@@ -13,7 +14,7 @@ from homeassistant.const import (
 from homeassistant.helpers import discovery
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.dispatcher import *
-from .izzi.controller import IzziEthBridge, IzziController
+from .izzi.controller import IzziEthBridge, IzziSerialBridge, IzziController
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,26 +32,37 @@ DEFAULT_CORRECTION = 0.0
 DEFAULT_BYPASS_TEMP = 23
 DEFAULT_BYPASS_MODE = "auto"
 
+CONF_TYPE_SERIAL = "serial"
+CONF_TYPE_TCP = "tcp"
+
 bypass_mode_list = ["auto", "open", "closed"]
 vent_mode_list = ["none", "fireplace", "open windows"]
 
 DEVICE = None
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Required(CONF_HOST): cv.string,
-                vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
-                vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-                vol.Optional(CONF_CORRECTION, default=DEFAULT_CORRECTION): vol.All(vol.Coerce(int), vol.Range(min=-20, max=20)),
-                vol.Optional(CONF_BYPASS_MODE, default=DEFAULT_BYPASS_MODE): vol.In(bypass_mode_list),
-                vol.Optional(CONF_BYPASS_TEMP, default=DEFAULT_BYPASS_TEMP): vol.All(vol.Coerce(int), vol.Range(min=17, max=24)),
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
+SERIAL_SCHEMA = {
+    vol.Required(CONF_TYPE): CONF_TYPE_SERIAL,
+    vol.Required(CONF_PORT): cv.string,
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+    vol.Optional(CONF_CORRECTION, default=DEFAULT_CORRECTION): vol.All(vol.Coerce(int), vol.Range(min=-20, max=20)),
+    vol.Optional(CONF_BYPASS_MODE, default=DEFAULT_BYPASS_MODE): vol.In(bypass_mode_list),
+    vol.Optional(CONF_BYPASS_TEMP, default=DEFAULT_BYPASS_TEMP): vol.All(vol.Coerce(int), vol.Range(min=17, max=24)),
+}
+
+ETHERNET_SCHEMA = {
+    vol.Required(CONF_TYPE): CONF_TYPE_TCP,
+    vol.Required(CONF_HOST): cv.string,
+    vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.positive_int,
+    vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+    vol.Optional(CONF_CORRECTION, default=DEFAULT_CORRECTION): vol.All(vol.Coerce(int), vol.Range(min=-20, max=20)),
+    vol.Optional(CONF_BYPASS_MODE, default=DEFAULT_BYPASS_MODE): vol.In(bypass_mode_list),
+    vol.Optional(CONF_BYPASS_TEMP, default=DEFAULT_BYPASS_TEMP): vol.All(vol.Coerce(int), vol.Range(min=17, max=24)),
+}
+
+
+CONFIG_SCHEMA = vol.Schema({
+    DOMAIN: vol.Any(SERIAL_SCHEMA, ETHERNET_SCHEMA)
+}, extra=vol.ALLOW_EXTRA)
 
 ATTR_MODE_NAME = "mode"
 ATTR_TEMP_NAME = "temp"
@@ -59,20 +71,32 @@ TEMP_DEFAULT_VAL = 23
 VENT_DEFAULT_NAME = "none"
 
 def setup(hass, config):
-    """Set up the ComfoConnect bridge."""
+    """Set up the izzi bridge."""
 
     conf = config[DOMAIN]
-    host = conf[CONF_HOST]
+    type = conf[CONF_TYPE]
     name = conf[CONF_NAME]
-    port = conf[CONF_PORT]
     
     correction = conf[CONF_CORRECTION]
     bypass_temp = conf[CONF_BYPASS_TEMP]
     bypass_mode = conf[CONF_BYPASS_MODE]
 
-    ethbridge = IzziEthBridge(host, port)
-    # Setup ComfoConnect Bridge
-    izzibridge = IzzifastBridge(hass, ethbridge, name, correction)
+    if CONF_TYPE_TCP == type:
+        _LOGGER.debug("Setting up Ethernet bridge")
+        host = conf[CONF_HOST]
+        port = conf[CONF_PORT]
+        bridge = IzziEthBridge(host, port)
+        _LOGGER.error("Wrong bridge type '%s'", type)
+    elif CONF_TYPE_SERIAL == type:
+        _LOGGER.debug("Setting up Serial bridge")
+        port = conf[CONF_PORT]
+        bridge = IzziSerialBridge(port)
+    else:
+        _LOGGER.error("Wrong bridge type '%s'", type)
+        return false
+    
+    # Setup Izzi Bridge
+    izzibridge = IzzifastBridge(hass, bridge, name, correction)
     hass.data[DOMAIN] = izzibridge
 
     izzibridge.set_bypass_temp(bypass_temp);
@@ -122,7 +146,6 @@ def setup(hass, config):
     discovery.load_platform(hass, "fan", DOMAIN, {}, config)
     discovery.load_platform(hass, "sensor", DOMAIN, {}, config)
     discovery.load_platform(hass, "binary_sensor", DOMAIN, {}, config)
-    #discovery.load_platform(hass, "switch", DOMAIN, {}, config)
 
     return True
 

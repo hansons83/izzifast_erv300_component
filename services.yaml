@@ -1,11 +1,22 @@
   
-# Describes the format for available fan services
-set_mode:
-  description: Sets bypass mode.
+# Describes the format for available services
+bypass_mode:
+  description: Set bypass mode.
   fields:
-    entity_id:
-      description: Name(s) of the entities to set
-      example: "switch.izzi_bypass"
-    speed:
+    mode:
       description: Mode setting
-      example: "open"
+      example: "auto, open, closed"
+      
+bypass_temp:
+  description: Set bypass comfort temperature in auto mode.
+  fields:
+    temp:
+      description: Temperature setting
+      example: "23"
+
+vent_mode:
+  description: Set ventilation special mode.
+  fields:
+    mode:
+      description: Mode setting
+      example: "none, fireplace, open windows"

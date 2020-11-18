@@ -8,6 +8,7 @@ import sys
 import select
 import logging
 import threading
+import serial
 from array import array
 from .const import *
 from . import *
@@ -44,6 +45,90 @@ class IzziBridge(object):
     def write_message(self, message: b'') -> bool:
         """Write a message to the connection."""
         pass
+
+class IzziSerialBridge(IzziBridge):
+    """Implements an interface to send and receive messages from the Bridge."""
+
+    STATUS_MESSAGE_LENGTH = 15
+
+    def __init__(self, usbname: str) -> None:
+        self.usbname = usbname
+
+        self._serialport = None
+        self.debug = False
+
+    def connect(self) -> bool:
+        """Open connection to the bridge."""
+
+        if self._serialport is None:
+            self._serialport = serial.Serial(self.usbname, 9600, timeout=0, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)
+            # Clear buffered data
+            while True:
+                ready = select.select([self._serialport], [], [], 0.1)
+                if not ready[0]:
+                    break
+                self._serialport.read(1024)
+
+        return True
+
+    def disconnect(self) -> bool:
+        """Close connection to the bridge."""
+
+        self._serialport.close()
+        self._serialport = None
+
+        return True
+
+    def is_connected(self):
+        """Returns weather there is an open port."""
+        
+        return self._serialport is not None
+
+    def read_message(self, timeout=3) -> b'':
+        """Read a message from the connection."""
+
+        if self._serialport is None:
+            raise Exception('Broken pipe')
+
+        message = b''
+        remaining = self.STATUS_MESSAGE_LENGTH
+        message_valid = False
+        while remaining > 0:
+            ready = select.select([self._serialport], [], [], timeout)
+            if not ready[0]:
+                message = None
+                break
+            if not message_valid:
+                data = self._serialport.read(1)
+                if struct.unpack_from('>B', data, 0)[0] != IZZI_STATUS_MESSAGE_ID:
+                    continue
+                message_valid = True
+            else:
+                data = self._serialport.read(remaining)
+            remaining -= len(data)
+            message += (data)
+        
+        # Debug message
+        
+        if message != None:
+            _LOGGER.debug("RX %s", binascii.hexlify(message))
+        return message
+
+    def write_message(self, message: b'') -> bool:
+        """Send a message."""
+
+        if self._serialport is None:
+            raise Exception('Not connected!')
+
+        # Debug message
+        #_LOGGER.debug("TX %s", "".join( str(x) for x in message))
+        _LOGGER.debug("TX %s", str(binascii.hexlify(message)))
+        # Send packet
+        try:
+            self._serialport.write(message)
+        except Exception:
+            return False
+        return True
 
 class IzziEthBridge(IzziBridge):
     """Implements an interface to send and receive messages from the Bridge."""
