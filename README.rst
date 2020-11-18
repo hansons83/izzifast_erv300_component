@@ -8,7 +8,7 @@ Support USB and network RS485 adapters
     
       izzifast:
         type: serial
-        port: /dev/ttyUSB0
+        port: /dev/ttyUSBx
         extract_correction: -10
         bypass_mode: "auto"
         bypass_temp: 24
