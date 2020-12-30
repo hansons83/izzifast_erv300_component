@@ -96,4 +96,4 @@ class IzzifastBinarySensor(BinarySensorEntity):
     @property
     def unique_id(self):
         """Return a unique_id for this entity."""
-        return f"{self._izzibridge.unique_id}-{self._sensor_type}"
+        return f"{self._izzibridge.unique_id}_binary_sensor_{self._sensor_type}"

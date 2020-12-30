@@ -1,4 +1,4 @@
-"""Platform to control a Zehnder ComfoAir Q350/450/600 ventilation unit."""
+"""Platform to control a IZZI ERV 300 ventilation unit."""
 import logging
 from typing import Optional
 
@@ -18,17 +18,17 @@ from .izzi import *
 _LOGGER = logging.getLogger(__name__)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up the ComfoConnect fan platform."""
+    """Set up the Izzi fan platform."""
     izzibridge = hass.data[DOMAIN]
 
     add_entities([IzzifastFan("iZZi Fan", izzibridge)], True)
 
 
 class IzzifastFan(FanEntity):
-    """Representation of the ComfoConnect fan platform."""
+    """Representation of the Izzi fan platform."""
 
     def __init__(self, name, izzibridge: IzzifastBridge) -> None:
-        """Initialize the ComfoConnect fan."""
+        """Initialize the Izzi fan."""
         self._izzibridge = izzibridge
         self._name = name
 
@@ -62,7 +62,7 @@ class IzzifastFan(FanEntity):
     @property
     def unique_id(self):
         """Return a unique_id for this entity."""
-        return self._izzibridge.unique_id
+        return f"{self._izzibridge.unique_id}_fan"
 
     @property
     def name(self):
@@ -133,6 +133,8 @@ class IzzifastFan(FanEntity):
          
         if valid_val == True:
             self._izzibridge.data[IZZY_SENSOR_FAN_MODE_ID] = speed
+        else:
+            _LOGGER.error("Fan speed not accepted %s", speed)
 
         # Update current mode
         self.schedule_update_ha_state()

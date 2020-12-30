@@ -305,7 +305,7 @@ class IzziController(object):
         return True
         
     def set_fan_speed(self, supply : int, extract : int) :
-        if supply < 20 or extract < 20 or supply > 100 or supply > 100:
+        if (supply < 20 and extract < 20) or supply > 100 or extract > 100:
             return False
         
         self._cmd_data[IZZY_SENSOR_FAN_SUPPLY_SPEED_ID][0] = supply

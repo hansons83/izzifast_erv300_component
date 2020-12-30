@@ -86,7 +86,6 @@ def setup(hass, config):
         host = conf[CONF_HOST]
         port = conf[CONF_PORT]
         bridge = IzziEthBridge(host, port)
-        _LOGGER.error("Wrong bridge type '%s'", type)
     elif CONF_TYPE_SERIAL == type:
         _LOGGER.debug("Setting up Serial bridge")
         port = conf[CONF_PORT]
@@ -151,14 +150,14 @@ def setup(hass, config):
 
 
 class IzzifastBridge:
-    """Representation of a ComfoConnect bridge."""
+    """Representation of a IZZI bridge."""
 
     def __init__(self, hass, bridge, name, correction):
-        """Initialize the ComfoConnect bridge."""
+        """Initialize the IZZI bridge."""
         self.data = {}
         self.name = name
         self.hass = hass
-        self.unique_id = "_iZZi_300_ERV_"
+        self.unique_id = "_iZZi_300_ERV_FE"
         self.correction = correction
 
         self.controller = IzziController(

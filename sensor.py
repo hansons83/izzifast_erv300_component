@@ -139,7 +139,7 @@ class IzzifastSensor(Entity):
     @property
     def unique_id(self):
         """Return a unique_id for this entity."""
-        return f"{self._izzibridge.unique_id}-{self._sensor_type}"
+        return f"{self._izzibridge.unique_id}_sensor_{self._sensor_type}"
 
     @property
     def name(self):
