@@ -220,13 +220,13 @@ class IzziEthBridge(IzziBridge):
 
 class IzziController(object):
     """Implements the commands to communicate with the IZZI 300 ERV ventilation unit."""
-                    # Id of sensor,                      Value,    Index in status message array
-    _sensors_data = {IZZY_SENSOR_TEMPERATURE_SUPPLY_ID: [None, IZZI_STATUS_MSG_SUPPLY_AIR_TEMP_INDEX], 
-                     IZZY_SENSOR_TEMPERATURE_EXTRACT_ID: [None, IZZI_STATUS_MSG_EXTRACT_AIR_TEMP_INDEX], 
-                     IZZY_SENSOR_TEMPERATURE_EXHAUST_ID: [None, IZZI_STATUS_MSG_EXHAUST_AIR_TEMP_INDEX],
-                     IZZY_SENSOR_TEMPERATURE_OUTDOOR_ID: [None, IZZI_STATUS_MSG_OUTDOR_AIR_TEMP_INDEX], 
-                     IZZY_SENSOR_BYPASS_STATE_ID: [None, IZZI_STATUS_MSG_BYPASS_STATE_INDEX], 
-                     IZZY_SENSOR_COVER_STATE_ID: [None, IZZI_STATUS_MSG_COVER_STATE_INDEX]}
+                    # Id of sensor,                      Value,    Index in status message array. Unpack type
+    _sensors_data = {IZZY_SENSOR_TEMPERATURE_SUPPLY_ID: [None, IZZI_STATUS_MSG_SUPPLY_AIR_TEMP_INDEX, '>b'], 
+                     IZZY_SENSOR_TEMPERATURE_EXTRACT_ID: [None, IZZI_STATUS_MSG_EXTRACT_AIR_TEMP_INDEX, '>b'], 
+                     IZZY_SENSOR_TEMPERATURE_EXHAUST_ID: [None, IZZI_STATUS_MSG_EXHAUST_AIR_TEMP_INDEX, '>b'],
+                     IZZY_SENSOR_TEMPERATURE_OUTDOOR_ID: [None, IZZI_STATUS_MSG_OUTDOR_AIR_TEMP_INDEX, '>b'], 
+                     IZZY_SENSOR_BYPASS_STATE_ID: [None, IZZI_STATUS_MSG_BYPASS_STATE_INDEX, '>B'], 
+                     IZZY_SENSOR_COVER_STATE_ID: [None, IZZI_STATUS_MSG_COVER_STATE_INDEX, '>B']}
 
                     # Id of sensor,               Target value,    Index in command array, multiplier
     _cmd_data = {IZZY_SENSOR_FAN_SUPPLY_SPEED_ID: [0, IZZI_CMD_MSG_SUPPLY_FAN_SPEED_INDEX, None], 
@@ -381,7 +381,7 @@ class IzziController(object):
                     for sensor_id in self._sensors_data:
                         sensor_data = self._sensors_data[sensor_id];
                         #print(sensor_id, " ;", self._sensors_data[sensor_id])
-                        sensor_current = struct.unpack_from('>B', status_message, sensor_data[1])[0] 
+                        sensor_current = struct.unpack_from(sensor_data[2], status_message, sensor_data[1])[0] 
                        
                         if sensor_data[0] != sensor_current:
                             sensor_data[0] = sensor_current
