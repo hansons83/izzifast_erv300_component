@@ -4,19 +4,36 @@ bypass_mode:
   description: Set bypass mode.
   fields:
     mode:
-      description: Mode setting
+      description: Mode
       example: "auto, open, closed"
       
 bypass_temp:
   description: Set bypass comfort temperature in auto mode.
   fields:
     temp:
-      description: Temperature setting
+      description: Temperature
       example: "23"
 
 vent_mode:
   description: Set ventilation special mode.
   fields:
     mode:
-      description: Mode setting
-      example: "none, fireplace, open windows"
+      description: Mode
+      example: "none, fireplace, open windows, cooker hood"
+
+correction:
+  description: Set extract fan correction.
+  fields:
+    value:
+      description: Extract fan correction in range -50:50
+      example: "10"
+
+speed_raw:
+  description: Set fans speed.
+  fields:
+    supply:
+      description: Set supply fan custom speed.
+      example: "40"
+    extract:
+      description: Set extract fan custom speed.
+      example: "40"

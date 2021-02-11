@@ -22,6 +22,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     sensors = [
         ["iZZi Bypass", IZZY_SENSOR_BYPASS_STATE_ID, "opening", IZZI_STATUS_MSG_BYPASS_STATE_OPEN],
         ["iZZi Cover", IZZY_SENSOR_COVER_STATE_ID, "opening", IZZY_STATUS_MSG_COVER_STATE_OPEN],
+        ["iZZi Defrost", IZZY_SENSOR_DEFROST_STATE_ID, "problem", IZZY_STATUS_MSG_DEFROST_STATE_ACTIVE],
     ]
 
     dev = []
@@ -35,14 +36,14 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class IzzifastBinarySensor(BinarySensorEntity):
     """Representation of a Danfoss Air binary sensor."""
 
-    def __init__(self, izzibridge, name, sensor_type, device_class, open_state):
+    def __init__(self, izzibridge, name, sensor_type, device_class, active_state):
         """Initialize the Danfoss Air binary sensor."""
         self._izzibridge = izzibridge
         self._name = name
         self._state = None
         self._sensor_type = sensor_type
         self._device_class = device_class
-        self._open_state = open_state
+        self._active_state = active_state
 
     async def async_added_to_hass(self):
         """Register for sensor updates."""
@@ -79,7 +80,7 @@ class IzzifastBinarySensor(BinarySensorEntity):
     def is_on(self):
         """Return the state of the sensor."""
         try:
-            return self._izzibridge.data[self._sensor_type] == self._open_state
+            return self._izzibridge.data[self._sensor_type] == self._active_state
         except KeyError:
             return False
 

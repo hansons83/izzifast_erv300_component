@@ -62,14 +62,9 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         ["iZZi Extract Fan Speed", "%", IZZY_SENSOR_FAN_EXTRACT_SPEED_ID, None, "mdi:fan", None],
         ["iZZi Bypass mode", "", IZZY_SENSOR_BYPASS_MODE_ID, None, None, bypass_mapping],
         ["iZZi Vent mode", "", IZZY_SENSOR_VENT_MODE_ID, None, None, vent_mode_mapping],
-        [
-            "iZZi Efficiency",
-            "%",
-            IZZY_SENSOR_EFFICIENCY_ID,
-            None,
-            None,
-            None
-        ],
+        ["iZZi Efficiency", "%", IZZY_SENSOR_EFFICIENCY_ID, None, None, None],
+        ["iZZi Extract correction", "%", IZZY_SENSOR_EXTRACT_CORRECTION_STATE_ID, None, None, None]
+        
     ]
     dev = []
 
