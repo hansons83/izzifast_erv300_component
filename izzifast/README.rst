@@ -4,8 +4,8 @@ Copy izzifast directory into home assistant *custom_component* directory
 
 Support USB and network RS485 adapters
 Support slave and master mode.
- - In slae mode only sensors and binary_sensors are available and touch panel must be connected to RS485 lines.
- - In master mode, fan entity and services are available, touch panel must not be connected.
+ - In slave mode only sensors and binary_sensors are available and touch panel must be connected to RS485 lines.
+ - In master mode, fan entity and services are also available, touch panel must not be connected.
 
 - USB configuration:
   
