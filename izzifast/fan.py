@@ -3,7 +3,6 @@ import logging
 from typing import Optional
 
 from homeassistant.components.fan import (
-    SPEED_OFF,
     SUPPORT_SET_SPEED,
     FanEntity,
 )
@@ -84,7 +83,7 @@ class IzzifastFan(FanEntity):
         """Flag is on."""
         try:
             mode = self._izzibridge.data[IZZY_SENSOR_FAN_MODE_ID]
-            if mode != None and mode != SPEED_OFF :
+            if mode != None :
                 _LOGGER.debug("Is on True")
                 return True
             return False
@@ -100,41 +99,37 @@ class IzzifastFan(FanEntity):
         except KeyError:
             return None
 
-    @property
-    def speed_list(self):
-        """List of available fan modes."""
-        return [SPEED_OFF, "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
-
-    def turn_on(self, speed_arg: Optional[str] = None, **kwargs: Any) -> None:
+    def turn_on(self, speed_arg: Optional[int] = None, **kwargs: Any) -> None:
         """Turn on the fan."""
         if speed_arg is None:
-            speed_arg = "40%"
+            speed_arg = 40
         
-        self.set_speed(speed_arg)
+        self._izzibridge.set_fan_on(True)
+        self.set_percentage(speed_arg)
 
     def turn_off(self, **kwargs: Any) -> None:
         """Turn off the fan (to away)."""
-        self.set_speed(SPEED_OFF)
-
-    def set_speed(self, speed: str) -> None:
+        self._izzibridge.set_fan_on(False)
+        
+    def set_percentage(self, percentage: int) -> None:
         """Set fan speed."""
-        _LOGGER.debug("Changing fan speed to %s", speed)
+        _LOGGER.debug("Changing fan percentage to %d %%", percentage)
         valid_val = False
-        if speed == SPEED_OFF:
+        if percentage == 0:
             self._izzibridge.set_fan_on(False)
             valid_val = True
         else:
             try:
-                speedVal = int(speed.replace('%', ''))
                 self._izzibridge.set_fan_on(True)
-                valid_val = self._izzibridge.set_fan_speed(speedVal)  
+                valid_val = self._izzibridge.set_fan_speed(percentage)  
             except ValueError:
-                _LOGGER.error("Wrong speed value %s", speed)
+                _LOGGER.error("Wrong percentage value %s", percentage)
          
         if valid_val == True:
-            self._izzibridge.data[IZZY_SENSOR_FAN_MODE_ID] = speed
+            self._izzibridge.data[IZZY_SENSOR_FAN_MODE_ID] = percentage
         else:
-            _LOGGER.error("Fan speed not accepted %s", speed)
+            _LOGGER.error("Fan percentage not accepted %s", percentage)
 
         # Update current mode
         self.schedule_update_ha_state()
+ 

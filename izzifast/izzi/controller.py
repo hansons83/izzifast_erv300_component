@@ -10,7 +10,10 @@ import select
 import logging
 import threading
 import serial
+from numpy import median
+from numpy import mean
 from array import array
+from collections import deque
 from .const import *
 from . import *
 
@@ -206,8 +209,8 @@ class IzziEthBridge(IzziBridge):
         
         # Debug message
         
-        if message != None:
-            _LOGGER.debug("RX %s", binascii.hexlify(message))
+        #if message != None:
+        #    _LOGGER.debug("RX %s", binascii.hexlify(message))
         return message
 
     def write_message(self, message: b'') -> bool:
@@ -218,7 +221,7 @@ class IzziEthBridge(IzziBridge):
 
         # Debug message
         #_LOGGER.debug("TX %s", "".join( str(x) for x in message))
-        _LOGGER.debug("TX %s", str(binascii.hexlify(message)))
+        #_LOGGER.debug("TX %s", str(binascii.hexlify(message)))
         # Send packet
         try:
             self._socket.sendall(message)
@@ -226,7 +229,162 @@ class IzziEthBridge(IzziBridge):
             return False
         return True
 
+class CfController(object):
+
+    # exp. press = 0,014*(perc*perc)-0,18*perc
+
+    CF_PARAMS_LENGTH = 5
+    
+    CF_CORRECTION_LENGTH = 5
+    
+    _module_enabled = False
+    _params_supply = deque([], CF_PARAMS_LENGTH)
+    _params_extract = deque([], CF_PARAMS_LENGTH)
+    
+    _corrections_supply = deque([], CF_CORRECTION_LENGTH)
+    _corrections_extract = deque([], CF_CORRECTION_LENGTH)
+
+    _params_max = 0.0
+    
+    _supply_speed = 0.0
+    _supply_speed_correction = 0.0
+    _supply_base_correction = 0
+    _extract_speed = 0.0
+    _extract_speed_correction = 0.0
+    _extract_base_correction = 0
+    
+    _supply_exp_param = 0.0
+    _extract_exp_param = 0.0
+    
+    
+    def __init__(self):
+        self._module_enabled = False
+    
+    def set_enabled(self, enabled : bool):
+        self._module_enabled = enabled
+        
+    def set_params_max(self, params_max : float):
+        self._params_max = params_max
+        _LOGGER.debug("CF params max %f", self._params_max)
+    
+    def set_current_params(self, supply : float, extract : float):
+        self._params_supply.append(supply)
+        self._params_extract.append(extract)
+   
+    def get_supply_speed(self, exp_speed : int) -> int:
+        if int(self._supply_speed) != exp_speed :
+            self._supply_speed = float(exp_speed)
+            supply_norm = self._supply_speed / 100.0
+            self._supply_exp_param = max(0.0, self._params_max* (supply_norm*supply_norm*supply_norm) + 40.0 * supply_norm - 6.0)
+            self._params_supply.clear()
+            #self._supply_base_correction = 0
+            self._corrections_supply.clear()
+        
+            _LOGGER.debug("Expected Supply CF params %f", self._supply_exp_param)
+            
+        target_val = self._supply_speed
+        correction_limit = int(target_val / 4)
+        if self._module_enabled :
+        
+            if len(self._params_supply) >= self.CF_PARAMS_LENGTH-1 :
+                
+                supply_param_avg = mean(self._params_supply)
+        
+                paramDiff = supply_param_avg - self._supply_exp_param
+                
+                # convert difference to percent and change sign
+                diffPerc = (paramDiff / self._params_max) * -100.0
+                # If speed higher allow bigger differences
+                supply_norm = self._supply_speed / 100.0
+                diffPerc = diffPerc * (0.4 * (1.0 - (supply_norm*supply_norm*supply_norm)) + 0.6)
+                
+                if abs(int(diffPerc)) > correction_limit :
+                    diffPerc = (abs(diffPerc) / diffPerc) * correction_limit
+                    
+                self._supply_speed_correction = int(diffPerc)
+
+                #
+                self._corrections_supply.append(self._supply_speed_correction)
+                if len(self._corrections_supply) >= self.CF_CORRECTION_LENGTH :
+                    supply_correction_avg = mean(self._corrections_supply)
+                    if abs(supply_correction_avg) > 1 :
+                        self._supply_base_correction += abs(supply_correction_avg) / supply_correction_avg
+                        if abs(self._supply_base_correction) > correction_limit :
+                            self._supply_base_correction = correction_limit * abs(self._supply_base_correction) / self._supply_base_correction
+                    self._corrections_supply.clear()
+                    
+                _LOGGER.debug("CF Supply diff %f, correction %d, avg %f, base %d", paramDiff, self._supply_speed_correction, supply_param_avg, self._supply_base_correction)
+                
+            target_val += self._supply_speed_correction + self._supply_base_correction
+            if target_val > 100 :
+                target_val = 100
+            elif target_val < self._supply_speed/2 :
+                target_val = self._supply_speed/2
+        return int(target_val)
+    
+    def get_extract_speed(self, exp_speed : int) -> int:
+        if int(self._extract_speed) != exp_speed :
+            self._extract_speed = float(exp_speed)
+            extract_norm = self._extract_speed / 100.0
+            self._extract_exp_param = max(0.0, self._params_max* (extract_norm*extract_norm*extract_norm) + 40.0 * extract_norm - 6.0)
+            self._params_extract.clear()
+            #self._extract_base_correction = 0
+            self._corrections_extract.clear()
+        
+            _LOGGER.debug("Expected Extract CF params %f", self._extract_exp_param)
+        
+        target_val = self._extract_speed
+        correction_limit = int(target_val / 4)
+        if self._module_enabled :
+                
+            if len(self._params_extract) >= self.CF_PARAMS_LENGTH-1 :
+                
+                extract_param_avg = mean(self._params_extract)
+                
+                paramDiff = extract_param_avg - self._extract_exp_param
+                # convert difference to percent and change sign
+                diffPerc = (paramDiff / self._params_max) * -100.0
+                # If speed higher allow bigger differences
+                extract_norm = self._extract_speed / 100.0
+                diffPerc = diffPerc * (0.4 * (1.0 - (extract_norm*extract_norm*extract_norm)) + 0.6)
+                
+                if abs(int(diffPerc)) > correction_limit :
+                    diffPerc = (abs(diffPerc) / diffPerc) * correction_limit
+                    
+                self._extract_speed_correction = int(diffPerc)
+
+                #
+                self._corrections_extract.append(self._extract_speed_correction)
+                if len(self._corrections_extract) >= self.CF_CORRECTION_LENGTH :
+                    extract_correction_avg = mean(self._corrections_extract)
+                    if abs(extract_correction_avg) > 1 :
+                        self._extract_base_correction += abs(extract_correction_avg) / extract_correction_avg
+                        if abs(self._extract_base_correction) > correction_limit :
+                            self._extract_base_correction = correction_limit * abs(self._extract_base_correction) / self._extract_base_correction
+                    self._corrections_extract.clear()
+                    
+                _LOGGER.debug("CF Extract diff %f, correction %d avg %f, base %d", paramDiff, self._extract_speed_correction, extract_param_avg, self._extract_base_correction)
+                
+            target_val += self._extract_speed_correction + self._extract_base_correction
+            if target_val > 100 :
+                target_val = 100
+            elif target_val < self._extract_speed/2 :
+                target_val = self._extract_speed/2
+        return int(target_val)
+    
+    def is_enabled(self) -> bool:
+        return self._module_enabled
+    
+    def get_extract_correction(self) -> int:
+        return int(self._extract_base_correction)
+    
+    def get_supply_correction(self) -> int:
+        return int(self._supply_base_correction)
+        
+
 class IzziController(object):
+
+    
     """Implements the commands to communicate with the IZZI 300 ERV ventilation unit."""
                     # Id of sensor,                      Value,    Index in status message array. Unpack type
     _sensors_data = {IZZY_SENSOR_TEMPERATURE_SUPPLY_ID: [None, IZZI_STATUS_MSG_SUPPLY_AIR_TEMP_INDEX, '>b'],
@@ -247,10 +405,15 @@ class IzziController(object):
 
                     # Id of sensor,           Target Value, Current value    
     _virtual_data = {IZZY_SENSOR_VENT_MODE_ID: [IZZY_SENSOR_VENT_MODE_NONE, None],
-                     IZZY_SENSOR_EFFICIENCY_ID: [0, None]}
+                     IZZY_SENSOR_EFFICIENCY_ID: [0, None],
+                     IZZY_SENSOR_CF_EXTRACT_CORRECTION_ID: [0, 0],
+                     IZZY_SENSOR_CF_SUPPLY_CORRECTION_ID: [0, 0]}
 
     """Callback function to invoke when sensor updates are received."""
     callback_sensor = None
+    
+    cf_controller = CfController()
+    extract_correction = 0.0
     
     _command_message = array('B', [IZZI_COMMAND_MESSAGE_ID, 0x19, 0x00, 0x14, 0x00, 0x16, 0x05, 0x00, 0x17, IZZY_CMD_BYPASS_MODE_CLOSED, 0x28, 0x28, IZZY_CMD_UNIT_STATE_OFF, 0x00, 0x00])
 
@@ -276,7 +439,6 @@ class IzziController(object):
     def disconnect(self):
         """Disconnect from the bridge."""
     
-        
         _LOGGER.info("IzziController disconnect")
     
         # Set the stopping flag
@@ -327,6 +489,7 @@ class IzziController(object):
         
         self._cmd_data[IZZY_SENSOR_FAN_SUPPLY_SPEED_ID][0] = supply
         self._cmd_data[IZZY_SENSOR_FAN_EXTRACT_SPEED_ID][0] = extract
+        
         return True
 
     def get_supply_speed():
@@ -354,7 +517,19 @@ class IzziController(object):
         
         self._virtual_data[IZZY_SENSOR_VENT_MODE_ID][0] = mode
         return True
+        
+    def set_cf_params_max(self, params_max : float) -> bool:
+        self.cf_controller.set_params_max(params_max)
+        self.cf_controller.set_enabled(True)
+        return True
     
+    def set_cf_params(self, supply : float, extract : float) -> bool:
+        self.cf_controller.set_current_params(supply, extract)
+        return True
+        
+    def is_cf_enabled(self) -> bool:
+        return self.cf_controller.is_enabled()
+        
     def set_unit_on(self, on : bool) :
         if on:
             self._cmd_data[IZZY_SENSOR_UNIT_STATE_ID][0] = IZZY_CMD_UNIT_STATE_ON
@@ -387,7 +562,7 @@ class IzziController(object):
             
             try:
                 
-                _LOGGER.debug("Reading message")
+                #_LOGGER.debug("Reading message")
                 status_message = self._bridge.read_message()
                 if status_message == None:
                     self._bridge.disconnect()
@@ -402,7 +577,7 @@ class IzziController(object):
                     timediff = time.time() - last_cmd_timestamp
                     last_cmd_timestamp = time.time()
                     
-                    _LOGGER.debug("Since last cmd %f", timediff)
+                    #_LOGGER.debug("Since last cmd %f", timediff)
                     
                     for sensor_id in self._sensors_data:
                         sensor_data = self._sensors_data[sensor_id];
@@ -421,9 +596,9 @@ class IzziController(object):
                         
                         if t3 != t1:
                             efficiency = ((t2 - t1) / (t3 - t1)) * 100.0
-                            self._virtual_data[IZZY_SENSOR_EFFICIENCY_ID][0] = int(efficiency)
+                            self._virtual_data[IZZY_SENSOR_EFFICIENCY_ID][0] = round(efficiency)
                         else:
-                            self._virtual_data[IZZY_SENSOR_EFFICIENCY_ID][0] = 0
+                            self._virtual_data[IZZY_SENSOR_EFFICIENCY_ID][0] = 100
                                 
                     except Exception as exc:
                         self._virtual_data[IZZY_SENSOR_EFFICIENCY_ID][0] = None
@@ -448,11 +623,25 @@ class IzziController(object):
                         exp_sensor_val = int(float(sensor_data[0]) * sensor_data[2])
                     else:
                         exp_sensor_val = sensor_data[0]
+                    
+                    if self._cmd_data[IZZY_SENSOR_UNIT_STATE_ID][0] == IZZY_CMD_UNIT_STATE_ON:
+                        if sensor_id == IZZY_SENSOR_FAN_SUPPLY_SPEED_ID:
+                            exp_sensor_val = self.cf_controller.get_supply_speed(exp_sensor_val)
+                            if exp_sensor_val < 15:
+                                exp_sensor_val = 15
+                        elif sensor_id == IZZY_SENSOR_FAN_EXTRACT_SPEED_ID:
+                            exp_sensor_val = self.cf_controller.get_extract_speed(exp_sensor_val)
+                            if exp_sensor_val < 15:
+                                exp_sensor_val = 15
                         
                     if exp_sensor_val != sensor_current:
                         self._command_message[sensor_data[1]] = exp_sensor_val
                         if self.callback_sensor:
                             self.callback_sensor(sensor_id, self._command_message[sensor_data[1]])
+                
+                if self.cf_controller.is_enabled(): 
+                    self._virtual_data[IZZY_SENSOR_CF_EXTRACT_CORRECTION_ID][0] = self.cf_controller.get_extract_correction()
+                    self._virtual_data[IZZY_SENSOR_CF_SUPPLY_CORRECTION_ID][0] = self.cf_controller.get_supply_correction()
                     
                 for sensor_id in self._virtual_data:
                     sensor_data = self._virtual_data[sensor_id]
@@ -465,7 +654,7 @@ class IzziController(object):
                     stat_msg_counter = 0
                     if self._master_mode:
                         #_LOGGER.debug("Writting msg %s", str(self._command_message))
-                        time.sleep(0.05)
+                        time.sleep(0.2)
                         self._bridge.write_message(self._command_message)
 
             except Exception as exc:

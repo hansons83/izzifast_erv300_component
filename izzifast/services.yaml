@@ -37,3 +37,13 @@ speed_raw:
     extract:
       description: Set extract fan custom speed.
       example: "40"
+      
+cf_params:
+  description: Set Constant flow module params.
+  fields:
+    supply:
+      description: Set supply fan CF module param.
+      example: "25.4"
+    extract:
+      description: Set extract fan CF module param.
+      example: "25.5"

@@ -3,5 +3,6 @@
   "name": "iZZi 300 ERV",
   "documentation": "https://www.home-assistant.io/integrations/",
   "requirements": [],
-  "codeowners": ["@Jakub"]
+  "codeowners": ["@Jakub"],
+  "version": "0.2.0"
 }

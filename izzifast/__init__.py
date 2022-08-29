@@ -23,6 +23,7 @@ CONF_MODE = "mode"
 CONF_CORRECTION = "extract_correction"
 CONF_BYPASS_MODE = "bypass_mode"
 CONF_BYPASS_TEMP = "bypass_temp"
+CONF_CF_PARAMS_MAX = "cf_params_max"
 
 DOMAIN = "izzifast"
 
@@ -33,6 +34,7 @@ DEFAULT_PORT = 8234
 DEFAULT_CORRECTION = 0.0
 DEFAULT_BYPASS_TEMP = 23
 DEFAULT_BYPASS_MODE = "auto"
+DEFAULT_CF_PARAMS_MAX = 0.0
 
 CONF_TYPE_SERIAL = "serial"
 CONF_TYPE_TCP = "tcp"
@@ -53,6 +55,7 @@ SERIAL_SCHEMA = {
     vol.Optional(CONF_CORRECTION, default=DEFAULT_CORRECTION): vol.All(vol.Coerce(int), vol.Range(min=-50, max=50)),
     vol.Optional(CONF_BYPASS_MODE, default=DEFAULT_BYPASS_MODE): vol.In(bypass_mode_list),
     vol.Optional(CONF_BYPASS_TEMP, default=DEFAULT_BYPASS_TEMP): vol.All(vol.Coerce(int), vol.Range(min=17, max=24)),
+    vol.Optional(CONF_CF_PARAMS_MAX, default=DEFAULT_CF_PARAMS_MAX): vol.All(vol.Coerce(int), vol.Range(min=0, max=500)),
 }
 
 ETHERNET_SCHEMA = {
@@ -64,6 +67,7 @@ ETHERNET_SCHEMA = {
     vol.Optional(CONF_CORRECTION, default=DEFAULT_CORRECTION): vol.All(vol.Coerce(int), vol.Range(min=-50, max=50)),
     vol.Optional(CONF_BYPASS_MODE, default=DEFAULT_BYPASS_MODE): vol.In(bypass_mode_list),
     vol.Optional(CONF_BYPASS_TEMP, default=DEFAULT_BYPASS_TEMP): vol.All(vol.Coerce(int), vol.Range(min=17, max=24)),
+    vol.Optional(CONF_CF_PARAMS_MAX, default=DEFAULT_CF_PARAMS_MAX): vol.All(vol.Coerce(int), vol.Range(min=0, max=500)),
 }
 
 
@@ -94,6 +98,7 @@ def setup(hass, config):
     correction = conf[CONF_CORRECTION]
     bypass_temp = conf[CONF_BYPASS_TEMP]
     bypass_mode = conf[CONF_BYPASS_MODE]
+    cf_max_params = conf[CONF_CF_PARAMS_MAX]
 
     if CONF_TYPE_TCP == type:
         _LOGGER.debug("Setting up Ethernet bridge")
@@ -125,6 +130,7 @@ def setup(hass, config):
 
     izzibridge.set_bypass_temp(bypass_temp);
     izzibridge.set_bypass_mode(bypass_mode_list.index(bypass_mode));
+    izzibridge.set_cf_params_max(cf_max_params);
     
     # Start connection with bridge
     izzibridge.connect()
@@ -162,6 +168,33 @@ def setup(hass, config):
         except Exception:
             _LOGGER.error("Correction set failed %d", value)
             
+    def handle_set_cf_params(call):
+        """Handle the service call."""
+        try:
+            supply_pd = call.data.get(ATTR_SUPPLY_NAME, 0)
+            extract_pd = call.data.get(ATTR_EXTRACT_NAME, 0)
+            if izzibridge.set_cf_params(float(supply_pd), float(extract_pd)) != True:
+                _LOGGER.error("CF params invalid %f:%f", supply_pd, extract_pd)
+        except Exception:
+            _LOGGER.error("CF params set failed %s:%s", str(supply_pd), str(extract_pd))
+    def handle_set_cf_supply_param(call):
+        """Handle the service call."""
+        try:
+            supply_pd = call.data.get(ATTR_SUPPLY_NAME, 0)
+            if izzibridge.set_cf_supply_param(float(supply_pd)) != True:
+                _LOGGER.error("CF supply param invalid %f", supply_pd)
+        except Exception:
+            _LOGGER.error("CF supply param set failed %s", str(supply_pd)) 
+            
+    def handle_set_cf_extract_param(call):
+        """Handle the service call."""
+        try:
+            extract_pd = call.data.get(ATTR_EXTRACT_NAME, 0)
+            if izzibridge.set_cf_extract_param(float(extract_pd)) != True:
+                _LOGGER.error("CF extract param invalid %f", extract_pd)
+        except Exception:
+            _LOGGER.error("CF extract param set failed %s", str(extract_pd))    
+            
     def handle_set_vent_mode(call):
         """Handle the service call."""
         try:
@@ -190,6 +223,7 @@ def setup(hass, config):
         hass.services.register(DOMAIN, "correction", handle_set_correction)
         hass.services.register(DOMAIN, "vent_mode", handle_set_vent_mode)
         hass.services.register(DOMAIN, "speed_raw", handle_set_speed_raw)
+        hass.services.register(DOMAIN, "cf_params", handle_set_cf_params)
         # Load platforms
         discovery.load_platform(hass, "fan", DOMAIN, {}, config)
 
@@ -237,6 +271,9 @@ class IzzifastBridge:
 
     def set_bypass_mode(self, mode) -> bool:
         return self.controller.set_bypass_mode(mode)
+        
+    def set_cf_max_param(self, param_max : float) -> bool:
+        return self.controller.set_cf_max_param(param_max)
             
     def set_vent_mode(self, mode) -> bool:
         return self.controller.set_vent_mode(mode)
@@ -260,14 +297,23 @@ class IzzifastBridge:
             return False
             
         self.speed = speed
-        if self.correction > 0:
-            self.controller.set_fan_speed(speed - round(((abs(self.correction)/100.0)*speed)), speed)
+        if not self.controller.is_cf_enabled() :
+            if self.correction > 0:
+                self.controller.set_fan_speed(speed - round(((abs(self.correction)/100.0)*speed)), speed)
+            else:
+                self.controller.set_fan_speed(speed, speed - round(((abs(self.correction)/100.0)*speed)))
         else:
-            self.controller.set_fan_speed(speed, speed - round(((abs(self.correction)/100.0)*speed)))
+            self.controller.set_fan_speed(speed, speed)
         return True
 
     def set_fan_speed_raw(self, supply : int, extract : int) -> bool:
         return self.controller.set_fan_speed(supply, extract)
+        
+    def set_cf_params(self, supply : float, extract : float) -> bool:
+        return self.controller.set_cf_params(supply, extract)
+
+    def set_cf_params_max(self, max_param : float) -> bool:
+        return self.controller.set_cf_params_max(max_param)
         
     def sensor_callback(self, var, value):
         """Notify listeners that we have received an update."""
