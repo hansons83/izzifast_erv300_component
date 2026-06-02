@@ -44,3 +44,6 @@ logger:
    | custom_components.izzifast: debug
    | izzicontroller: debug
 
+If you find this integration useful, you can support my work by buying me a coffee:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/hansons83)
